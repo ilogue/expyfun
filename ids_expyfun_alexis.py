@@ -5,7 +5,7 @@
 #          simplified bsd-3 license
 
 """Script for infant basic preference testing using auditory stimuli"""
-import numpy as np
+import pandas
 from os import path as op
 from expyfun import ExperimentController, get_keyboard_input
 from expyfun.stimuli import read_wav
@@ -31,6 +31,7 @@ def matchPressReleaseEvents(events):
                 """No press found for this release. Count from beginning"""
                 pressTime = 0
             durations.append((key, etime-pressTime))
+    durations = pandas.DataFrame(durations, columns=['key','duration'])
     return durations
 
 fs= 24414
@@ -48,6 +49,7 @@ stimdir = 'stimuli'
 imgs = [op.join(stimdir, i) for i in ['circle.png','star.png']]
 rewardfpath = op.join(stimdir, 'like.png')
 punishfpath = op.join(stimdir, 'fail.png')
+directionKeys = ['left', 'right']
 
 
 with ExperimentController('testExp', participant='foo', session='001',
@@ -77,15 +79,12 @@ with ExperimentController('testExp', participant='foo', session='001',
 
     ## analyse responses
     events = ec.get_presses(kind='both')
-    keydurs = matchPressReleaseEvents(events)
-    print(keydurs)
-    if not len(events):
-        message = 'no keys pressed'
-    else:
-        message = ['{} {} after {} secs\n'
-                   ''.format(k, r, round(t, 4)) for k, t, r in events]
-        message = ''.join(message)
-    ec.screen_prompt(message, 3)
+    keypressDurations = matchPressReleaseEvents(events)
+    totalDurationByKey = keypressDurations.groupby('key')['duration'].sum()
+    dominantDirection = totalDurationByKey.reindex(directionKeys).argmax()
+    # What if no direction was pressed at all?
+    
+    ec.screen_prompt(dominantDirection, 1)
 
     ## reward phase
     if False:
@@ -93,7 +92,7 @@ with ExperimentController('testExp', participant='foo', session='001',
     else:
         RawImage(ec, imread(punishfpath)).draw()
     ec.flip()
-    ec.wait_secs(2)
+    ec.wait_secs(.2)
 
 
     #ec.trial_ok()
