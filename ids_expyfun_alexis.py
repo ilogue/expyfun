@@ -13,6 +13,7 @@ from expyfun._trigger_controllers import decimals_to_binary
 import expyfun.analyze as ea
 from scipy.misc import imread
 from expyfun.visual import RawImage
+import random, copy
 
 def matchPressReleaseEvents(events):
     """Assumes events in chron. order"""
@@ -50,7 +51,16 @@ imgs = [op.join(stimdir, i) for i in ['circle.png','star.png']]
 rewardfpath = op.join(stimdir, 'like.png')
 punishfpath = op.join(stimdir, 'fail.png')
 directionKeys = ['left', 'right']
+parts = [0,0,1]
 
+pre = {}
+pre['ntrials'] = 9
+pre['structure'] = 'random'
+pre['anticipatory-phase'] = 1.
+pre['reward'] = 2.
+pre['xpos'] = -.4
+post = copy.copy(pre)
+post['xpos'] = .4
 
 with ExperimentController('testExp', participant='foo', session='001',
                           output_dir='.', version='dev') as ec:
@@ -61,38 +71,44 @@ with ExperimentController('testExp', participant='foo', session='001',
     #ec.load_buffer(tone)
     #dot.draw()
     #ec.identify_trial(ec_id='xyz', ttl_id=[0, 0])
-    ec.listen_presses()
+    totalntrials = pre['ntrials'] + post['ntrials']
+    for trial in range(totalntrials):
+        if trial < pre['ntrials']:
+            phase = pre
+        else:
+            phase = post
 
-    ## stimulus phase
-    for s in [0,1,0]:
-        #ec.start_stimulus()
-        RawImage(ec, imread(imgs[s])).draw()
+        ec.listen_presses()
+
+        ## stimulus phase
+        if phase['structure'] == 'random':
+            struct = copy.copy(parts)
+            random.shuffle(struct)
+        else:
+            struct = phase['structure']
+        for s in struct:
+            #ec.start_stimulus()
+            RawImage(ec, imread(imgs[s])).draw()
+            ec.flip()
+            ec.wait_secs(.3)
+            #ec.stop()
+        ec.get_presses(kind='both') # Sends responses during stimuli to log.
+        ec.listen_presses() # Clear response buffer at start of response phase.
+
+        ## response phase
         ec.flip()
-        ec.wait_secs(.3)
-        #ec.stop()
-    ec.get_presses(kind='both') # Sends responses during stimuli to log.
-    ec.listen_presses() # Clear response buffer at start of response phase.
+        ec.wait_secs(phase['anticipatory-phase'])
 
-    ## response phase
-    ec.flip()
-    ec.wait_secs(2)
+        ## analyse responses
+        events = ec.get_presses(kind='both')
+        #keypressDurations = matchPressReleaseEvents(events)
+        #totalDurationByKey = keypressDurations.groupby('key')['duration'].sum()
+        #dominantDirection = totalDurationByKey.reindex(directionKeys).argmax()
 
-    ## analyse responses
-    events = ec.get_presses(kind='both')
-    keypressDurations = matchPressReleaseEvents(events)
-    totalDurationByKey = keypressDurations.groupby('key')['duration'].sum()
-    dominantDirection = totalDurationByKey.reindex(directionKeys).argmax()
-    # What if no direction was pressed at all?
-    
-    ec.screen_prompt(dominantDirection, 1)
-
-    ## reward phase
-    if False:
-        RawImage(ec, imread(rewardfpath)).draw()
-    else:
-        RawImage(ec, imread(punishfpath)).draw()
-    ec.flip()
-    ec.wait_secs(.2)
+        ## reward phase
+        RawImage(ec, imread(rewardfpath), pos=(phase['xpos'], 0)).draw()
+        ec.flip()
+        ec.wait_secs(phase['reward'])
 
 
     #ec.trial_ok()
