@@ -78,20 +78,21 @@ with ExperimentController('testExp', participant='foo', session='001',
         else:
             phase = post
 
-        ec.listen_presses()
-
         ## stimulus phase
         if phase['structure'] == 'random':
             struct = copy.copy(parts)
             random.shuffle(struct)
         else:
             struct = phase['structure']
+        trialid = '{}_{}'.format(trial, ''.join([str(s) for s in struct]))
+        ec.identify_trial(ec_id=trialid, ttl_id=[0, 0])
+        ec.listen_presses()
+        ec.start_stimulus()
         for s in struct:
-            #ec.start_stimulus()
             RawImage(ec, imread(imgs[s])).draw()
             ec.flip()
             ec.wait_secs(.3)
-            #ec.stop()
+        ec.stop()
         ec.get_presses(kind='both') # Sends responses during stimuli to log.
         ec.listen_presses() # Clear response buffer at start of response phase.
 
@@ -109,6 +110,7 @@ with ExperimentController('testExp', participant='foo', session='001',
         RawImage(ec, imread(rewardfpath), pos=(phase['xpos'], 0)).draw()
         ec.flip()
         ec.wait_secs(phase['reward'])
+        ec.trial_ok()
 
 
     #ec.trial_ok()
